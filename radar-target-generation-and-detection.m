@@ -162,8 +162,8 @@ figure,surf(doppler_axis,range_axis,RDM);
 %% CFAR implementation
 % I added implementation and output inline by opening the file as Matlab live-script
 %
-% Slide Window through the complete Range Doppler Map
 
+% Slide Window through the complete Range Doppler Map
 % *%TODO* :
 %Select the number of Training Cells in both the dimensions.
 Tr = 7; %Training cells on range dim
@@ -187,9 +187,22 @@ active_doppler_cells = Nd - TGCells_doppler;
 
 noise_lvl = zeros(size(RDM));
 
-%%% CFAR (loop) Implementation
-% design a loop such that it slides the CUT across range doppler map
+%%% Design a loop such that it slides the CUT across range doppler map
+%
 % by giving margins at the edges for Training and Guard Cells.
+%
+%
+% <<2D_CFAR.png>>
+% 
+% * 2D CA-CFAR Grid parameter : Variable
+% * Training band columns : Tr
+% * Training band rows : Td
+% * Guard band columns : Gr
+% * Guard band rows : Gd
+% * CUT cells range :  [min_r : max_r]
+% * CUT cells doppler :  [min_d : max_d]
+% 
+
 training_area = (TGCells_range+1)*(TGCells_doppler+1);
 guard_area = (2*Gr+1)*(2*Gd+1);
 
@@ -202,9 +215,16 @@ RDM_CFAR = zeros(size(RDM));
 for r = min_r:max_r
     for d = min_d:max_d
         
-        %For every iteration sum the signal level within all the training
-        %cells. To sum convert the value from logarithmic to linear using db2pow
-        %function.
+        %For every iteration sum the signal level within all the training cells.
+        %To sum convert the value from logarithmic to linear using db2pow function.
+        
+        %%% Sum signal level within all the training cells
+        %
+        % # Extract signal level values within the area inside guard cells (Guard cells + CUT)
+        % # Extract signal level values within the area inside training cells (Training + sGuard cells + CUT)
+        % # Sum all values belonging to each area after converting to linear scale using db2pow
+        % # To calculate sum signal level in training cells only: Subtract sum of values inside the grey rectangle from sum of values inside the blue rectange
+        %
         
         %sum power level of guard area
         p_guard_area = sum(db2pow(RDM(r-Gr:r+Gr,d-Gd:d+Gd)),'all');
@@ -213,13 +233,26 @@ for r = min_r:max_r
         %sum of power levels at training cells
         power_training = p_train_area - p_guard_area;
         
+        %%% Calculate average by dividing sum of signal level in training cells on number of training cells
+        %
+        
         %Average the summed values for all of the training cells used
         avg_power_training = power_training / (training_area-guard_area);
+        
+        %%% Establish threshold level by converting Average training level to dB and adding an offset
+        %
         
         %After averaging convert it back to logarithimic using pow2db.
         %Further add the offset to it to determine the threshold.
         %db is a logarithmic ratio of powers
         threshold = pow2db(avg_power_training) * offset;
+        
+        %%% Compare CUT level to Threshold
+        %
+        % * Store comparison outcome in a new array of the same size as RDM
+        % * Set 1 when CUT level is above threshold
+        % * Set 0 Otherwise
+        %
         
         %Next, compare the signal under CUT with this threshold.
         %If the CUT level > threshold assign it a value of 1
